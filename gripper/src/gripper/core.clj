@@ -15,6 +15,7 @@
 (ns gripper.core
   (:require
     [gripper.http           :as gripper-http  ]
+    [shovel.producer        :as sh-producer   ]
     [clojure.edn            :as edn           ]
     [clojure.core.async     :refer 
       [alts! chan go thread timeout 
