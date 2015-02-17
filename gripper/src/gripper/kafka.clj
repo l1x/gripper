@@ -40,6 +40,7 @@
     :request.required.acks          "1"
   })
 
+
 (defn json-producer
   [config]
   (let [producer-connection (sh-producer/producer-connector config)]
