@@ -47,9 +47,6 @@
       (sh-producer/produce
         producer-connection
         ;move this to config
-        (sh-producer/message "user_profile_test" "asd" (str "this is my message" n))))))
+        (sh-producer/message "topic" "asd" (str "this is my message" n))))))
 
-(defn init 
-  [] 
-  (test-producer config))
 
