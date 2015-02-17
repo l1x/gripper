@@ -41,13 +41,30 @@
     (log/info "reading config and initializing state (opening connections, etc.)")
     (log/info "spawning X kafka producer threads")
 
+(def config {  
+    :metadata.broker.list           "localhost:9092"
+    :serializer.class               "kafka.serializer.StringEncoder"
+    :request.required.acks          "1"
+  })
+
+(defn json-producer
+  [config]
+  (let [producer-connection (sh-producer/producer-connector config)]
+    (doseq [n (range 100)]
+      (sh-producer/produce
+        producer-connection
+        ;move this to config
+        (sh-producer/message "topic" "asd" (str "this is my message" n))))))
+
   
     (dotimes [i 8]
       (thread
-        (let [ _ (str 1) ]
+        (let [ producer-connection (sh-producer/producer-connector config) ]
           (go-loop [] 
             (let [ message (<!! gripper-http/work-chan) ] (log/debug "go-loop thread : " message))
             (recur)))))
+  
+  
   
    (gripper-http/start 8080)
   
