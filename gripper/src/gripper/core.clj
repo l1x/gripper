@@ -30,43 +30,58 @@
     )
   (:gen-class))
 
+;; HELPERS
+
+(defn read-file
+  "Returns {:ok string } or {:error...}"
+  [^String file]
+  (try
+    (cond
+      (.isFile (File. file))
+        {:ok (slurp file) }                         ; if .isFile is true {:ok string}
+      :else
+        (throw (Exception. "Input is not a file"))) ;the input is not a file, throw exception
+  (catch Exception e
+    {:error "Exception" :fn "read-file" :exception (.getMessage e) }))) ; catch all exceptions
+  
+(defn parse-edn-string
+  "Returns the Clojure data structure representation of s"
+  [s]
+  (try
+    {:ok (clojure.edn/read-string s)}
+  (catch Exception e
+    {:error "Exception" :fn "parse-config" :exception (.getMessage e)})))
+
+(defn read-config
+  "Returns the Clojure hashmap version of the config file"
+  [file]
+  (let 
+    [ file-string (read-file file) ]
+    (cond
+      (contains? file-string :ok)
+        ;this return the {:ok} or {:error} from parse-edn-string
+        (parse-edn-string (file-string :ok))
+      :else
+        ;the read-file operation returned an error
+        file-string)))
+
 ;; MAIN
-;;
+
 (defn -main
   [& args]
-  ;(let [  ^PersistentHashMap config (read-config "conf/app.edn")       ]
+ (let [ ^PersistentHashMap config    (read-config "conf/app.edn") ]
     ;; INIT
-    (log/info "init start")
+    (log/info "init :: start")
     (log/info "checking config...")
-    (log/info "reading config and initializing state (opening connections, etc.)")
-    (log/info "spawning X kafka producer threads")
+    (cond 
+      (contains? config :ok)
+        (config-ok config)
+      :else
+        ;; exit 1 here
+        (config-err config))
+      
 
-(def config {  
-    :metadata.broker.list           "localhost:9092"
-    :serializer.class               "kafka.serializer.StringEncoder"
-    :request.required.acks          "1"
-  })
-
-(defn json-producer
-  [config]
-  (let [producer-connection (sh-producer/producer-connector config)]
-    (doseq [n (range 100)]
-      (sh-producer/produce
-        producer-connection
-        ;move this to config
-        (sh-producer/message "topic" "asd" (str "this is my message" n))))))
-
-  
-    (dotimes [i 8]
-      (thread
-        (let [ producer-connection (sh-producer/producer-connector config) ]
-          (go-loop [] 
-            (let [ message (<!! gripper-http/work-chan) ] (log/debug "go-loop thread : " message))
-            (recur)))))
-  
-  
-  
    (gripper-http/start 8080)
   
-  )
+  ))
 
