@@ -1,0 +1,12 @@
+{
+
+  :kafka {
+    :topic "test"
+    :timeout-exception-threshold 100000
+  }
+
+  :other {
+    :key :value
+  }
+
+};end

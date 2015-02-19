@@ -14,11 +14,10 @@
 
 (ns gripper.http
   (:require
+    [gripper.helpers          :as gripper-helpers             ]
+    [shovel.producer          :as shovel-producer             ]
     [aleph.http               :as aleph-http                  ]
     [clojure.edn              :as edn                         ]
-    [clojure.core.async       :refer
-      [alts!! chan go thread timeout
-       >! >!! <! <!! go-loop  ]                               ]
     [clojure.tools.logging    :as log                         ]
     [metrics.ring.instrument  :refer [instrument]             ]
     [metrics.ring.expose      :refer [expose-metrics-as-json] ]
@@ -29,12 +28,12 @@
                                       status]                 ]
     )
   (:import
-    [java.io File ByteArrayInputStream]
-    [java.util UUID]
-    [clojure.lang PersistentHashMap PersistentArrayMap]
-    [clojure.core.async.impl.channels ManyToManyChannel]
-    [com.codahale.metrics MetricRegistry]
-    [aleph.http.core HeaderMap NettyRequest]
+    [java.io                File ByteArrayInputStream             ]
+    [clojure.lang           PersistentHashMap PersistentArrayMap  ]
+    [com.codahale.metrics   MetricRegistry                        ]
+    [aleph.http.core        HeaderMap NettyRequest                ]
+    [kafka.javaapi.producer Producer                              ]
+    [kafka.producer         KeyedMessage ProducerConfig           ]
     )
   (:gen-class))
 
@@ -52,9 +51,6 @@
   ^PersistentHashMap [] 
   (reduce (fn [x [y z]] (assoc x y z)) {} (System/getProperties)))
 
-(def ^ManyToManyChannel work-chan (chan 256))
-(def ^ManyToManyChannel stat-chan (chan 256))
-
 (defn parse-json-body
   "Parses http request body as it is JSON, if fails returns an {:error....}"
   ^PersistentHashMap [^ByteArrayInputStream body] 
@@ -62,6 +58,10 @@
     {:ok (json/read-str (slurp body))}
   (catch Exception e
     {:error "Exception" :fn "parse-json-body" :exception (.getMessage e) })))
+
+(def ^Producer producer
+  (let [ ^PersistentHashMap producer-config (get-in gripper-helpers/config [:ok :kafka :producer-config]) ]
+    (shovel-producer/producer-connector producer-config)))
 
 ;; controller functions
 
@@ -79,14 +79,15 @@
     (log/debug req)
     (let [  ^PersistentHashMap    headers (:headers req) 
             ^ByteArrayInputStream body (:body req)
-            ^PersistentHashMap    parsed-body (parse-json-body body) ]
+            ^PersistentHashMap    parsed-body (parse-json-body body)
+            ^String               message (json/write-str (:ok parsed-body)) ]
 
     (log/debug "sending echo-post : " parsed-body)
     (cond
       (contains? parsed-body :ok)
-        ;alts!! is chosing between delivering the message or reaching the timeout
-        (let [[ret _] (alts!! [[work-chan parsed-body] (timeout 150)])] 
-          (cond ret 
+        (let [ ret (shovel-producer/produce producer (shovel-producer/message "topikk" message))]
+          (log/debug "Return value from shovel-producer/produce : " ret "Message : " message)
+          (cond (nil? ret)
               (json-response {:ok :ok})
             :else 
               (status (json-response {:error "Sending messages to Kafka is timing out..."}) 503)))

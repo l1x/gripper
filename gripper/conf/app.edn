@@ -1,0 +1,18 @@
+{
+
+  :kafka {
+
+    :producer-config {  
+      :metadata.broker.list           "localhost:9092"
+      :serializer.class               "kafka.serializer.StringEncoder"
+      :request.required.acks          "1"
+    }
+
+    :topic "topikk"
+  }
+
+  :other {
+    :key :value
+  }
+
+};end
